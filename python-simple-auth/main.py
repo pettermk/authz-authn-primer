@@ -15,8 +15,8 @@ async def public(request: Request):
             request=request,
             name='index.html',
             context={
-                'first_name': 'Anonymous',
-                'last_name': 'Coward'
+                'first_name': 'Mr.',
+                'last_name': 'Anonymous'
                 })
 
 @app.get("/behind_proxy", response_class=HTMLResponse, include_in_schema=False)
@@ -28,3 +28,4 @@ async def behind_proxy(request: Request):
             context={
                 'first_name': 'Dude'
                 })
+

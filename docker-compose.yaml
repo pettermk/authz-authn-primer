@@ -1,0 +1,42 @@
+services:
+  oauth2-proxy:
+    image: quay.io/oauth2-proxy/oauth2-proxy:v7.8.1-alpine
+    volumes:
+      - ./oauth2-proxy/config.cfg:/etc/oauth2_proxy/config.cfg:rw
+    command:
+      --config /etc/oauth2_proxy/config.cfg
+    environment:
+      OAUTH2_PROXY_CLIENT_SECRET: ${OAUTH2_PROXY_CLIENT_SECRET}
+      OAUTH2_PROXY_COOKIE_SECRET: ${OAUTH2_PROXY_COOKIE_SECRET}
+    network_mode: "service:web"
+    # expose:
+    #   - "8080"
+    # ports:
+    #   - "8080:8080"
+    # networks:
+    #   - authz-authn-demo
+  web:
+    expose:
+      - "8000"
+      - "8080"
+    ports:
+      - "8000:8000"
+      - "8080:8080"
+    build:
+      context: ./
+      dockerfile: ./python-simple-auth/Containerfile
+
+    # ports:
+    #   - "8000:5000"
+    develop:
+      watch:
+        - action: sync
+          path: ./python-simple-auth/
+          target: /app
+    networks:
+      - authz-authn-demo
+  # redis:
+  #   image: "redis:alpine"
+
+networks:
+  authz-authn-demo:
