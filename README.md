@@ -44,10 +44,22 @@ az ad user show --id admin.<user name>@akerbp.com --query id --output tsv
 # Add your admin user as owner to the app reg
 az ad app owner add --id <app reg id> --owner-object-id <admin user id>
 
-# Find the enterprise app id 
-az ad sp list --display-name "<app reg name>" --query "[].appId" --output tsv
-
-# Add your admin user as owner to the enterprise app
-az ad sp owner add --id <enterprise app id> --owner_object_id <admin user id>
 ````
+
+Attempts to do the final step of assigning the correct owner to the enterprise application
+have failed. There is no Azure CLI command to do this, and using the graph API fails in 
+mysterious ways.
+
+A ticket to IT help is currently the only way to do this.
+
+# Run app without authentication set up.
+## Setup environment file 
+To successfully run the app, a few environment variables need to be in place. These are the 
+client ID, client secret and a cookie secret.
+
+To run the application and verify that your local development environment is correctly set up,
+run 
+```bash
+docker-compose up
+```
 
