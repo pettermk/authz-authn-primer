@@ -55,11 +55,38 @@ A ticket to IT help is currently the only way to do this.
 # Run app without authentication set up.
 ## Setup environment file 
 To successfully run the app, a few environment variables need to be in place. These are the 
-client ID, client secret and a cookie secret.
+client ID, client secret and a cookie secret. To start filling these out, copy the template
+to a real `.env` file
+
+```bash
+cp .env-template .env
+```
+
+### Create cookie secret
+All cookies are encrypted using a secret key. To prevent the possibility of reading and tampering
+with the cookie, this secret needs to be unique. There are several ways to do so and they are 
+documented [here](https://oauth2-proxy.github.io/oauth2-proxy/configuration/overview/#generating-a-cookie-secret).
+One easy way is to type in the terminal
+
+```bash
+dd if=/dev/urandom bs=32 count=1 2>/dev/null | base64 | tr -d -- '\n' | tr -- '+/' '-_' ; echo
+```
+
+Then the resulting string can be put into the `.env` file.
+
+### Oauth2 properties
+The app we requested earlier came with a client secret, it should be sent to you by email. The 
+client ID can be found using the Azure CLI,
+
+```bash
+az ad app list --display-name <app-registration-name> --query "[].appId" --output tsv
+```
 
 To run the application and verify that your local development environment is correctly set up,
 run 
 ```bash
 docker-compose up
 ```
+
+Now type those values into their respective variables in the `.env` file.
 
