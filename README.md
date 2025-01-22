@@ -52,7 +52,7 @@ mysterious ways.
 
 A ticket to IT help is currently the only way to do this.
 
-# Run app without authentication set up.
+# Verify app works without authentication
 ## Setup environment file 
 To successfully run the app, a few environment variables need to be in place. These are the 
 client ID, client secret and a cookie secret. To start filling these out, copy the template
@@ -82,11 +82,68 @@ client ID can be found using the Azure CLI,
 az ad app list --display-name <app-registration-name> --query "[].appId" --output tsv
 ```
 
-To run the application and verify that your local development environment is correctly set up,
-run 
+Now type those values into their respective variables in the `.env` file.
+
+### Run the app
+
+Now that we have filled out our environment file, we can run the application. To run the application 
+and verify that your local development environment is correctly set up, run 
+
 ```bash
 docker-compose up
 ```
 
-Now type those values into their respective variables in the `.env` file.
+The app is now running, and visiting `http://localhost:8080/public` should result in the application being 
+visible. This endpoint is configured in the oauth2-proxy configuration to not require authentication, using 
+the `skip_auth_routes` configuration.
+
+## Setting up routes using authentication
+### Try it
+The webapp has an endpoint called `http://localhost:8080/behind_proxy`, and it requires authentication.
+Try visiting this page.
+
+This should result in an error. The reason is that we have not configured a _callback URL_ yet.
+
+### The callback URL
+
+To understand the callback URL, lets rewind a few steps and learn some of the key elements of how
+the authentication proxy works.
+
+When hitting our protected endpoint, the oauth2-proxy roughly follows the following sequence, depending
+on whether or not the user is already authenticated.
+
+```mermaid
+sequenceDiagram
+    actor User
+    box purple Application
+    participant AuthenticationProxy
+    participant App
+    end
+    box yellow Identity provider
+    participant EntraID
+    end
+    
+
+    User->>AuthenticationProxy: Request
+    alt Authenticated
+    AuthenticationProxy->> App: You are authenticated
+    App->> User: Application served
+    end
+    alt Not authenticated
+    AuthenticationProxy->> EntraID: You are not authenticated, redirect
+    EntraID->> AuthenticationProxy: Authentication complete, callback
+    AuthenticationProxy->> App: You are authenticated
+    App->> User: Application served
+    end
+```
+
+In the sequence where the user is not authenticated, they are redirected to the identity provider,
+and once the user is authenticated they will be issed a set of credentials proving who they are 
+(ID token) and what accesses they have (Access token). These credentials are passed to what we 
+designate as the _redirect URL_, or _callback URL_ as it is often also called.
+
+Entra ID will only be permitted to pass the credentials to a predefined set of URLs. In our case, 
+our authentication proxy is running on `http://localhost:8080` and this URL needs to be added to 
+the set of permitted redirect URIs.
+
 
