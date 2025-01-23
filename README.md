@@ -115,14 +115,13 @@ on whether or not the user is already authenticated.
 ```mermaid
 sequenceDiagram
     actor User
-    box purple Application
+    box rgba(75, 118, 181, 0.8) Application
     participant AuthenticationProxy
     participant App
     end
     box yellow Identity provider
     participant EntraID
     end
-    
 
     User->>AuthenticationProxy: Request
     alt Authenticated
@@ -146,4 +145,12 @@ Entra ID will only be permitted to pass the credentials to a predefined set of U
 our authentication proxy is running on `http://localhost:8080` and this URL needs to be added to 
 the set of permitted redirect URIs.
 
+To set the correct redirect URL, in bash, again get you application ID and modify it:
+```
+# Get application ID
+az ad app list --display-name "<app reg name>" --query "[].appId" --output tsv
+
+# Add redirect URL
+az ad app update --id <app_id> --web-redirect-uris "http://localhost/oauth2/callback"
+```
 
