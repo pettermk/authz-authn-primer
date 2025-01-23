@@ -146,11 +146,40 @@ our authentication proxy is running on `http://localhost:8080` and this URL need
 the set of permitted redirect URIs.
 
 To set the correct redirect URL, in bash, again get you application ID and modify it:
-```
+```bash
 # Get application ID
 az ad app list --display-name "<app reg name>" --query "[].appId" --output tsv
 
 # Add redirect URL
 az ad app update --id <app_id> --web-redirect-uris "http://localhost/oauth2/callback"
 ```
+
+
+### The application permission
+
+Now that we've set the correct callback URL, there is a final issue standing between us and a 
+successful single sign-on flow. To make single sign-on work, our application needs the permission 
+to call the microsoft graph API to get information about the user who is about to sign in.
+
+Since we're using OpenID Connect, the permissions our application needs are captured in the 
+standard OpenID scope, i.e. _email, offline_access, openid, profile_. To configure the app with these
+permissions, run
+
+```
+az ad app permission add --id <app_id> --api 00000003-0000-0000-c000-000000000000 --api-permissions '7427e0e9-2fba-42fe-b0c0-848c9e6a8182=Scope'
+az ad app permission add --id <app_id> --api 00000003-0000-0000-c000-000000000000 --api-permissions '64a6cdd6-aab1-4aaf-94b8-3cc8405e90d0=Scope'
+az ad app permission add --id <app_id> --api 00000003-0000-0000-c000-000000000000 --api-permissions '37f7f235-527c-4136-accd-4a02d197296e=Scope'
+az ad app permission add --id <app_id> --api 00000003-0000-0000-c000-000000000000 --api-permissions '14dad69e-099b-42c9-810b-d002981feec1=Scope'
+```
+
+The _api_ field here refers to the Microsoft Graph API, and the permissions ID of all scopes in 
+this API can be looked up [here](https://learn.microsoft.com/en-us/graph/permissions-reference).
+
+At this point we've configured the application to have the permission to access these scopes, 
+however configuring it is not sufficient to actually get the permission. Permissions must be granted
+by an administrator. To trigger the flow that requests this permissions on behalf of the application, 
+try to log in to your application at `http://localhost:8080/behind_proxy`. A dialog should pop up,
+looking something like this
+
+![Admin consent dialog](images/admin-consent.png)
 
