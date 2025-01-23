@@ -183,3 +183,58 @@ looking something like this
 
 ![Admin consent dialog](images/admin-consent.png)
 
+Here, you can type your justification for requesting this type of permissions, then a ticket will 
+created behind the scenes and processed accordingly. Once the permissions have been granted, you 
+should be able to successfully log into the application at `http://localhost:8080/behind_proxy`
+
+If everything has gone as expected, you should now see a page that list all information gathered
+about you in the identification process.
+
+### Unpacking the logic
+
+Why and how do we currently have access to this information inside our application?
+
+The authentication proxy has a few options regarding if and how it should pass authentication 
+information through to the underlying web application. Specifically, the oauth2-proxy options
+
+```toml
+pass_access_token = true
+pass_authorization_header = true
+```
+
+These settings will ensure that the ID token is passed in the authorization header to the 
+upstream web application.
+
+### Decoding the tokens
+
+Both the access token and the ID token can be decoded and inspected easily. In Entra ID, both 
+follow the JSON web token standard, meaning they are comprised of headers, a payload and a 
+signature.
+
+#### Token validity
+
+Since our app is protected by an outer shell in the form of the authentication proxy, validating 
+the token is not strictly necessary. However, we should practice our defense-in-depth muscle at 
+all times, therefore we validate the token in the code as well.
+
+The JWT (JSON web token) consists of three parts - header, payload and signature. Token 
+validation is based on asymmetric cryptography. In Entra ID, there are several public-private key 
+pairs, such as you would find when setting up a regular Github ssh connection. The public keys can 
+be found per the application's OpenID configuration, at what is called the _JWKS_uri_.
+
+This URI is used in the code, and can be obtained by 
+
+```bash
+curl https://login.microsoftonline.com/3b7e4170-8348-4aa4-bfae-06a3e1867469/v2.0/.well-known/openid-configuration | jq '.jwks_uri'
+```
+
+By using the _public key_ we can cryptographically verify that the payload has been signed using 
+the _private key_ only known by EntraID. The consequence of this is that we can be sure that the 
+token is valid, has been signed by the correct authority, and importantly, it will not have been 
+possible to tamper with the payload by an adversary. This means that all information in the payload 
+can be trusted.
+
+There are more details to validating, such as checking the _audience_ and token expiry. We will 
+not go into those details here.
+
+
