@@ -5,17 +5,22 @@ FROM python:3.12-alpine
 ENV HOME /root
 
 # Copy your project to the image
-COPY ./python-simple-auth/ /app
+RUN mkdir -p /app
+COPY ./python-simple-auth/pyproject.toml /app/
+COPY ./python-simple-auth/poetry.lock /app/
+
+
+# Install required tools
+# Set working directory for commands in the container
+WORKDIR /app
+RUN pip install poetry
+RUN poetry install --no-root
+
+COPY ./python-simple-auth/ /app/
 
 # Make the app directory and its contents executable
 RUN chmod -R 755 /app
 
-# Set working directory for commands in the container
-WORKDIR /app
-
-# Install required tools
-RUN pip install poetry
-RUN poetry install --no-root
 
 # Expose port 8000 for running application
 EXPOSE 8000
