@@ -10,6 +10,7 @@ software.
 - Docker desktop: Install from company portal
 - Ubuntu (or other linux) from app store. Follow [this](https://learn.microsoft.com/en-us/windows/wsl/setup/environment)
 - Azure cli: Follow [this](https://learn.microsoft.com/en-us/cli/azure/install-azure-cli-linux?pivots=apt)
+- `jq`: [Install](https://jqlang.github.io/jq/download/)
 
 ## Application registration and enterprise application in Entra ID
 To obtain an application registration, fill out the form in ServiceNow. It is located at 
@@ -97,7 +98,7 @@ The app is now running, and visiting `http://localhost:8080/public` should resul
 visible. This endpoint is configured in the oauth2-proxy configuration to not require authentication, using 
 the `skip_auth_routes` configuration.
 
-## Setting up routes using authentication
+## Setting up authentication
 ### Try it
 The webapp has an endpoint called `http://localhost:8080/behind_proxy`, and it requires authentication.
 Try visiting this page.
@@ -211,11 +212,12 @@ Both the access token and the ID token can be decoded and inspected easily. In E
 follow the JSON web token standard, meaning they are comprised of headers, a payload and a 
 signature.
 
-#### Token validity
+#### Verify token validity
 
-Since our app is protected by an outer shell in the form of the authentication proxy, validating 
-the token is not strictly necessary. However, we should practice our defense-in-depth muscle at 
-all times, therefore we validate the token in the code as well.
+Before decoding the token we need to verify its validity. Since our app is protected by and
+outer shell in the form of the authentication proxy, validating the token is not strictly 
+necessary as the proxy takes care of this step. However, we should practice our defense-in-depth 
+muscle at all times, therefore we validate the token in the code as well.
 
 The JWT (JSON web token) consists of three parts - header, payload and signature. Token 
 validation is based on asymmetric cryptography. In Entra ID, there are several public-private key 
@@ -237,4 +239,30 @@ can be trusted.
 There are more details to validating, such as checking the _audience_ and token expiry. We will 
 not go into those details here.
 
+#### Token decoding
+
+A JWT token is only base64 encoded, meaning that it's content and payload is completely transparent,
+and can be decoded by anyone regardless of the signing and validation procedure. In python, you 
+can simply do `jwt.decode(token, options={'verify})` and the result is a dictionary containing the 
+payload of the token, as you would see in `https://jwt.ms`.
+
+## Handling authz/authn in code instead of proxy
+
+Using the oauth2-proxy to handle authentication for you can be an easy way to get started with 
+authentication and authorization scenarios. However, it is not uncommon that this approach lacks
+the necessary flexibility to handle all authz/authn concerns.
+
+Here are a few examples where using the proxy might be introduce more issue than it solves.
+
+- Deploying an open source application which already supports authz/authn using OIDC
+- More complex scenarios like on-behalf-of flow
+- You don't have docker setup locally, and can't simulate the way the app behaves in production
+
+The good news is that most frameworks have great support for these scenarios, and generally, setting 
+it up is not a very complicated endeavour. Let's look at a few examples.
+
+### FastAPI OIDC integration
+
+We can use the built-in security framework in our example FastAPI app. First, we will make an API
+endpoint that requires a valid token in its authorization header. 
 
