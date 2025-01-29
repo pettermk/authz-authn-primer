@@ -45,7 +45,15 @@ az ad user show --id admin.<user name>@akerbp.com --query id --output tsv
 # Add your admin user as owner to the app reg
 az ad app owner add --id <app reg id> --owner-object-id <admin user id>
 
-````
+# Get the service principal (enterprise app) ID 
+az ad sp list --display-name "<app reg name>" --query "[].id" --output tsv
+
+# Add your admin user as owner to the enterprise application
+az rest --method POST \                                                    
+  --url "https://graph.microsoft.com/v1.0/servicePrincipals/<sp_id>/owners/\$ref" \
+  --headers "Content-Type=application/json" \
+  --body '{"@odata.id": "https://graph.microsoft.com/v1.0/users/<admin user id>"}'
+```
 
 Attempts to do the final step of assigning the correct owner to the enterprise application
 have failed. There is no Azure CLI command to do this, and using the graph API fails in 
@@ -98,14 +106,14 @@ The app is now running, and visiting `http://localhost:8080/public` should resul
 visible. This endpoint is configured in the oauth2-proxy configuration to not require authentication, using 
 the `skip_auth_routes` configuration.
 
-## Setting up authentication
-### Try it
+# Setting up authentication
+## Try it
 The webapp has an endpoint called `http://localhost:8080/behind_proxy`, and it requires authentication.
 Try visiting this page.
 
 This should result in an error. The reason is that we have not configured a _callback URL_ yet.
 
-### The callback URL
+## The callback URL
 
 To understand the callback URL, lets rewind a few steps and learn some of the key elements of how
 the authentication proxy works.
@@ -130,6 +138,7 @@ sequenceDiagram
     App->> User: Application served
     end
     alt Not authenticated
+    User->>AuthenticationProxy: Request
     AuthenticationProxy->> EntraID: You are not authenticated, redirect
     EntraID->> AuthenticationProxy: Authentication complete, callback
     AuthenticationProxy->> App: You are authenticated
@@ -138,7 +147,7 @@ sequenceDiagram
 ```
 
 In the sequence where the user is not authenticated, they are redirected to the identity provider,
-and once the user is authenticated they will be issed a set of credentials proving who they are 
+and once the user is authenticated they will be issued a set of credentials proving who they are 
 (ID token) and what accesses they have (Access token). These credentials are passed to what we 
 designate as the _redirect URL_, or _callback URL_ as it is often also called.
 
@@ -147,6 +156,7 @@ our authentication proxy is running on `http://localhost:8080` and this URL need
 the set of permitted redirect URIs.
 
 To set the correct redirect URL, in bash, again get you application ID and modify it:
+
 ```bash
 # Get application ID
 az ad app list --display-name "<app reg name>" --query "[].appId" --output tsv
@@ -156,7 +166,7 @@ az ad app update --id <app_id> --web-redirect-uris "http://localhost/oauth2/call
 ```
 
 
-### The application permission
+## The application permission
 
 Now that we've set the correct callback URL, there is a final issue standing between us and a 
 successful single sign-on flow. To make single sign-on work, our application needs the permission 
@@ -191,7 +201,7 @@ should be able to successfully log into the application at `http://localhost:808
 If everything has gone as expected, you should now see a page that list all information gathered
 about you in the identification process.
 
-### Unpacking the logic
+## Unpacking the logic
 
 Why and how do we currently have access to this information inside our application?
 
@@ -206,13 +216,13 @@ pass_authorization_header = true
 These settings will ensure that the ID token is passed in the authorization header to the 
 upstream web application.
 
-### Decoding the tokens
+## Decoding the tokens
 
 Both the access token and the ID token can be decoded and inspected easily. In Entra ID, both 
 follow the JSON web token standard, meaning they are comprised of headers, a payload and a 
 signature.
 
-#### Verify token validity
+### Verify token validity
 
 Before decoding the token we need to verify its validity. Since our app is protected by and
 outer shell in the form of the authentication proxy, validating the token is not strictly 
@@ -239,12 +249,80 @@ can be trusted.
 There are more details to validating, such as checking the _audience_ and token expiry. We will 
 not go into those details here.
 
-#### Token decoding
+### Token decoding
 
 A JWT token is only base64 encoded, meaning that it's content and payload is completely transparent,
 and can be decoded by anyone regardless of the signing and validation procedure. In python, you 
 can simply do `jwt.decode(token, options={'verify})` and the result is a dictionary containing the 
 payload of the token, as you would see in `https://jwt.ms`.
+
+
+# Access control
+Now that we've successfully set up authentication in our web app, we should make some considerations 
+around access control.
+
+By default, the application we've set up does not require anything else than that the user belongs 
+to the Entra ID tenant we are authenticating against (i.e. all employees). Often we might need to 
+restrict access to a smaller group than this.
+
+## Verify current access control level
+To check that everyone can log in, we can run the following
+```bash
+az ad sp show --id <app_id> | jq '.appRoleAssignmentRequired'
+```
+
+If the result is `false`, everyone in the tenant can log into the app. Change this to true.
+
+```bash
+az ad sp update --id <app_id> appRoleAssignmentRequired=true
+```
+
+Now start the application and observe that we can still login to our public endpoint 
+`http://localhost:8080/public`, but we are now denied logging into `http://localhost:8080/behind_proxy`.
+
+## Explicitly add access to user or group
+With the new setting `appRoleAssignmentRequired` set to `true`, we need to explicitly grant access 
+to our application. To add access to a principal, first find its object ID and then add it to the 
+access control list. Unfortunately, the Azure CLI does not support this operation, but powershell 
+does. Since this tutorial uses the Azure CLI, we are going to use the Entra ID graph API via the 
+to set up this access. Powershell users can use the `New-AzureADServiceAppRoleAssignment` command.
+
+When using the graph API it might be easier to put the payload in a separate file. Create a JSON 
+file with the following content
+
+```jsonc
+{
+  "principalId": "principalId-value",
+  "resourceId": "resourceId-value",
+  "appRoleId": "appRoleId-value"
+}
+```
+
+The values should be set as follows
+
+| Key | Value |
+| --- | --- |
+| principalId | The object ID of the user or group to assign permissions |
+| resourceId | The client ID of the enterprise application |
+| appRoleId | 00000000-0000-0000-0000-000000000000 (Default Access built-in role)|
+
+To find these values:
+
+```
+# Use your own user, find its ID
+az ad user show --id <user_name> --query id --output tsv
+
+# Find the service principal ID
+az ad sp list --display-name "authz-authn-training" --query "[].id" --output tsv
+```
+
+When these values have been found and filled into `payload.json`, in the terminal:
+
+```
+az rest --method POST --uri "https://graph.microsoft.com/v1.0/servicePrincipals/<sp_id>/appRoleAssignedTo" --headers 'Content-Type=application/json' --body @python-simple-auth/payload.json
+```
+
+Now your user should be permitted logging in, and the web app should work again.
 
 ## Handling authz/authn in code instead of proxy
 
@@ -261,8 +339,11 @@ Here are a few examples where using the proxy might be introduce more issue than
 The good news is that most frameworks have great support for these scenarios, and generally, setting 
 it up is not a very complicated endeavour. Let's look at a few examples.
 
+
+
 ### FastAPI OIDC integration
 
 We can use the built-in security framework in our example FastAPI app. First, we will make an API
 endpoint that requires a valid token in its authorization header. 
+
 
